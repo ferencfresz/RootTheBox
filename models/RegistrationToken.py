@@ -20,16 +20,19 @@ Created on Sep 22, 2012
 """
 
 
+import binascii
+from builtins import str
 from os import urandom
+
 from sqlalchemy import Column
-from sqlalchemy.types import String, Boolean
+from sqlalchemy.types import Boolean, String
+
+from libs.StringCoding import decode, encode
 from models import dbsession
 from models.BaseModels import DatabaseObject
-from libs.StringCoding import encode
-from builtins import str
 
-
-gen_token = lambda: encode(urandom(3), "hex")
+def gen_token():
+    return binascii.hexlify(urandom(3))
 
 
 class RegistrationToken(DatabaseObject):
@@ -54,6 +57,11 @@ class RegistrationToken(DatabaseObject):
         return dbsession.query(cls).count()
 
     @classmethod
-    def by_value(cls, value):
+    def by_value(cls, _value):
         """Returns a the object with value of value"""
-        return dbsession.query(cls).filter_by(value=encode(value)).first()
+        return dbsession.query(cls).filter_by(value=encode(_value)).first()
+    
+    def getvalue(self):
+        return  decode(self.value)
+    
+

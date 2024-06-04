@@ -5,15 +5,22 @@ Revises: fe5e615ae090
 Create Date: 2023-03-11 19:33:02.808038
 
 """
-import sqlalchemy as sa
 from datetime import datetime
-from alembic import op
+
+import sqlalchemy as sa
 from sqlalchemy.engine.reflection import Inspector
 from sqlalchemy.sql.expression import func
 
-conn = op.get_bind()
-inspector = Inspector.from_engine(conn)
-tables = inspector.get_table_names()
+from alembic import op
+
+try:
+    conn = op.get_bind()
+    inspector = Inspector.from_engine(conn)
+    tables = inspector.get_table_names()
+except:
+    conn = None
+    inspector = None
+    tables = None
 
 # revision identifiers, used by Alembic.
 revision = "ffe623ae412"
@@ -26,6 +33,8 @@ flag_count = {}
 
 
 def _table_has_column(table, column):
+    if not inspector:
+        return True
     has_column = False
     for col in inspector.get_columns(table):
         if column not in col["name"]:
@@ -40,7 +49,6 @@ def _has_table(table_name):
 
 
 def add_history(created, team_id, reason, value):
-    conn = op.get_bind()
     conn.execute(
         f"INSERT INTO game_history (created, team_id, _type, _value) VALUES ('{created}', {team_id}, '{reason}', {value});"
     )
@@ -83,7 +91,6 @@ def check_history(item):
 
 def upgrade():
     try:
-        conn = op.get_bind()
         res = conn.execute("SELECT * FROM snapshot_team;")
         results = res.fetchall()
         i = 0

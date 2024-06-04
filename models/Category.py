@@ -20,15 +20,16 @@ Created on Jun 19, 2018
 """
 
 
-import xml.etree.cElementTree as ET
 import json
-
-from uuid import uuid4
-from sqlalchemy import Column
-from sqlalchemy.types import Unicode, String
-from sqlalchemy.orm import relationship, backref
-from libs.ValidationError import ValidationError
+import xml.etree.cElementTree as ET
 from builtins import str
+from uuid import uuid4
+
+from sqlalchemy import Column
+from sqlalchemy.orm import backref, relationship
+from sqlalchemy.types import String, Unicode
+
+from libs.ValidationError import ValidationError
 from models import dbsession
 from models.BaseModels import DatabaseObject
 
@@ -39,7 +40,7 @@ class Category(DatabaseObject):
     uuid = Column(String(36), unique=True, nullable=False, default=lambda: str(uuid4()))
 
     _category = Column(Unicode(64), unique=True, nullable=False)
-    _description = Column(Unicode(1024), nullable=True)
+    _description = Column(Unicode(4096), nullable=True)
 
     boxes = relationship("Box", backref=backref("category", lazy="select"))
 
@@ -84,8 +85,8 @@ class Category(DatabaseObject):
 
     @description.setter
     def description(self, value):
-        if 1024 < len(value):
-            raise ValidationError("Description cannot be greater than 1024 characters")
+        if 4096 < len(value):
+            raise ValidationError("Description cannot be greater than 4096 characters")
         self._description = str(value)
 
     @property

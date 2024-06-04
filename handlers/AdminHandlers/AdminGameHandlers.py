@@ -23,42 +23,44 @@ Handlers related to controlling and configuring the overall game.
 """
 # pylint: disable=unused-wildcard-import,no-member
 
+import logging
 import os
 import subprocess
-import logging
-import defusedxml.minidom
-import xml.etree.cElementTree as ET
 import time
-
-from tempfile import NamedTemporaryFile
+import xml.etree.cElementTree as ET
 from builtins import str
-from models.Flag import Flag
-from models.Box import Box
-from models.Swat import Swat
-from models.GameLevel import GameLevel
-from models.User import ADMIN_PERMISSION
-from models.Team import Team
-from models.Theme import Theme
-from models.Penalty import Penalty
-from models.SourceCode import SourceCode
-from models.Corporation import Corporation
-from models.Category import Category
-from models.Notification import Notification
-from models.RegistrationToken import RegistrationToken
-from libs.EventManager import EventManager
-from libs.SecurityDecorators import *
-from libs.StringCoding import encode, decode
-from libs.ValidationError import ValidationError
+from datetime import datetime
+from string import printable
+from tempfile import NamedTemporaryFile
+
+import defusedxml.minidom
+from past.builtins import basestring
+from tornado.ioloop import PeriodicCallback
+from tornado.options import options
+
+from handlers.BaseHandlers import BaseHandler
 from libs.ConfigHelpers import save_config
 from libs.ConsoleColors import *
-from libs.Scoreboard import score_bots, Scoreboard
-from handlers.BaseHandlers import BaseHandler
-from string import printable
+from libs.EventManager import EventManager
+from libs.Scoreboard import Scoreboard, score_bots
+from libs.SecurityDecorators import *
+from libs.StringCoding import decode, encode
+from libs.ValidationError import ValidationError
+from models.Box import Box
+from models.Category import Category
+from models.Corporation import Corporation
+from models.EmailToken import EmailToken
+from models.Flag import Flag
+from models.GameLevel import GameLevel
+from models.Notification import Notification
+from models.Penalty import Penalty
+from models.RegistrationToken import RegistrationToken
+from models.SourceCode import SourceCode
+from models.Swat import Swat
+from models.Team import Team
+from models.Theme import Theme
+from models.User import ADMIN_PERMISSION
 from setup.xmlsetup import import_xml
-from tornado.options import options
-from tornado.ioloop import PeriodicCallback
-from past.builtins import basestring
-from datetime import datetime
 
 
 class AdminGameHandler(BaseHandler):
@@ -69,11 +71,30 @@ class AdminGameHandler(BaseHandler):
     @authenticated
     @authorized(ADMIN_PERMISSION)
     def post(self, *args, **kwargs):
+        self.admin_actions(self)
+        self.redirect("/user")
+
+    @staticmethod
+    def isOn(value):
+        return value == "on" or value == "true"
+
+    @staticmethod
+    def admin_actions(self):
         start_game = self.get_argument("start_game", None)
+        stop_game = self.get_argument("stop_game", None)
         suspend_reg = self.get_argument("suspend_registration", None)
         set_timer = self.get_argument("countdown_timer", None)
         hide_scoreboard = self.get_argument("hide_scoreboard", None)
+        show_scoreboard = self.get_argument("show_scoreboard", None)
         stop_timer = self.get_argument("stop_timer", None)
+        start_timer = self.get_argument("start_timer", None)
+
+        if start_game is None and stop_game is not None:
+            start_game = "false" if stop_game == "true" else "true"
+        if stop_timer is None and start_timer is not None:
+            stop_timer = "false" if start_timer == "true" else "true"
+        if hide_scoreboard is None and show_scoreboard is not None:
+            hide_scoreboard = "false" if show_scoreboard == "true" else "true"
 
         if (
             start_game
@@ -131,11 +152,13 @@ class AdminGameHandler(BaseHandler):
                 ] = options.global_notification
                 options.global_notification = False
                 self.event_manager.push_scoreboard()
-
-        self.redirect("/user")
-
-    def isOn(self, value):
-        return value == "on"
+        return {
+            "start_game": self.application.settings["game_started"],
+            "suspend_registration": self.application.settings["suspend_registration"],
+            "hide_scoreboard": self.application.settings["hide_scoreboard"],
+            "countdown_timer": self.application.settings["countdown_timer"],
+            "stop_timer": self.application.settings["stop_timer"],
+        }
 
 
 class AdminMessageHandler(BaseHandler):
@@ -654,6 +677,14 @@ class AdminResetHandler(BaseHandler):
     @authenticated
     @authorized(ADMIN_PERMISSION)
     def post(self, *args, **kwargs):
+        success, errors = self.reset(self.dbsession)
+        Scoreboard.update_gamestate(self)
+        self.event_manager.push_score_update()
+        self.flush_memcached()
+        self.render("admin/reset.html", success=success, errors=errors)
+
+    @staticmethod
+    def reset(dbsession):
         """
         Reset the Game
         """
@@ -679,41 +710,43 @@ class AdminResetHandler(BaseHandler):
                 if not level_0:
                     level_0 = GameLevel.all()[0]
                 team.game_levels = [level_0]
-                self.dbsession.add(team)
-            self.dbsession.commit()
-            self.dbsession.flush()
+                dbsession.add(team)
+            dbsession.commit()
+            dbsession.flush()
             for team in teams:
                 for paste in team.pastes:
-                    self.dbsession.delete(paste)
+                    dbsession.delete(paste)
                 for shared_file in team.files:
                     shared_file.delete_data()
-                    self.dbsession.delete(shared_file)
-            self.dbsession.commit()
-            self.dbsession.flush()
+                    dbsession.delete(shared_file)
+            dbsession.commit()
+            dbsession.flush()
             Penalty.clear()
             Notification.clear()
             swats = Swat.all()
             for swat in swats:
-                self.dbsession.delete(swat)
-            self.dbsession.commit()
+                dbsession.delete(swat)
+            dbsession.commit()
+            tokens = EmailToken.all()
+            if tokens is not None:
+                for token in tokens:
+                    dbsession.delete(token)
+            dbsession.commit()
             flags = Flag.all()
             for flag in flags:
                 # flag.value = flag.value allows a fallback to when original_value was used
                 # Allows for the flag value to be reset if dynamic scoring was used
                 # Can be removed after depreciation timeframe
                 flag.value = flag.value
-                self.dbsession.add(flag)
-            self.dbsession.commit()
-            self.dbsession.flush()
-            Scoreboard.update_gamestate(self)
-            self.event_manager.push_score_update()
-            self.flush_memcached()
+                dbsession.add(flag)
+            dbsession.commit()
+            dbsession.flush()
             success = "Successfully Reset Game"
-            self.render("admin/reset.html", success=success, errors=errors)
+            return (success, errors)
         except BaseException as e:
             errors.append("Failed to Reset Game")
             logging.error(str(e))
-            self.render("admin/reset.html", success=None, errors=errors)
+            return (None, errors)
 
 
 class AdminResetDeleteHandler(BaseHandler):
@@ -728,6 +761,14 @@ class AdminResetDeleteHandler(BaseHandler):
     @authenticated
     @authorized(ADMIN_PERMISSION)
     def post(self, *args, **kwargs):
+        success, errors = self.reset(self.dbsession)
+        Scoreboard.update_gamestate(self)
+        self.event_manager.push_score_update()
+        self.flush_memcached()
+        self.render("admin/reset.html", success=success, errors=errors)
+
+    @staticmethod
+    def reset(dbsession):
         """
         Reset the Game - Delete all teams
         """
@@ -738,45 +779,47 @@ class AdminResetDeleteHandler(BaseHandler):
             teams = Team.all()
             for team in teams:
                 for paste in team.pastes:
-                    self.dbsession.delete(paste)
+                    dbsession.delete(paste)
                 for shared_file in team.files:
                     shared_file.delete_data()
-                    self.dbsession.delete(shared_file)
-            self.dbsession.commit()
-            self.dbsession.flush()
+                    dbsession.delete(shared_file)
+            dbsession.commit()
+            dbsession.flush()
             Penalty.clear()
             Notification.clear()
             swats = Swat.all()
             for swat in swats:
-                self.dbsession.delete(swat)
-            self.dbsession.commit()
+                dbsession.delete(swat)
+            dbsession.commit()
+            tokens = EmailToken.all()
+            for token in tokens:
+                dbsession.delete(token)
+            dbsession.commit()
             for user in users:
-                self.dbsession.delete(user)
-            self.dbsession.commit()
+                dbsession.delete(user)
+            dbsession.commit()
             for team in teams:
-                self.dbsession.delete(team)
-            self.dbsession.commit()
+                dbsession.delete(team)
+            dbsession.commit()
             flags = Flag.all()
             for flag in flags:
                 # flag.value = flag.value allows a fallback to when original_value was used
                 # Allows for the flag value to be reset if dynamic scoring was used
                 # Can be removed after depreciation timeframe
                 flag.value = flag.value
-                self.dbsession.add(flag)
-            self.dbsession.commit()
-            self.dbsession.flush()
-            Scoreboard.update_gamestate(self)
-            self.event_manager.push_score_update()
-            self.flush_memcached()
+                dbsession.add(flag)
+            dbsession.commit()
+            dbsession.flush()
+
             if options.teams:
                 success = "Successfully Deleted Teams"
             else:
                 success = "Successfully Deleted Players"
-            self.render("admin/reset.html", success=success, errors=errors)
+            return (success, errors)
         except BaseException as e:
             if options.teams:
                 errors.append("Failed to Delete Teams")
             else:
                 errors.append("Failed to Delete Players")
             logging.error(str(e))
-            self.render("admin/reset.html", success=None, errors=errors)
+            return (None, errors)

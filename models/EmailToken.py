@@ -20,14 +20,16 @@ Created on Jan 29, 2021
 """
 
 
-from os import urandom
+from datetime import datetime, timedelta
 from hashlib import sha256
-from sqlalchemy import Column, ForeignKey
-from sqlalchemy.types import String, Boolean, Integer
+from os import urandom
+
+from sqlalchemy import Column, ForeignKey, desc
+from sqlalchemy.types import Boolean, Integer, String
+
+from libs.StringCoding import encode
 from models import dbsession
 from models.BaseModels import DatabaseObject
-from libs.StringCoding import encode
-from datetime import datetime, timedelta
 
 
 class EmailToken(DatabaseObject):
@@ -44,20 +46,28 @@ class EmailToken(DatabaseObject):
 
     @classmethod
     def by_id(cls, _id):
-        """Returns a the object with id of _id"""
+        """Returns the object with id of _id"""
         return dbsession.query(cls).filter_by(id=_id).first()
 
     @classmethod
-    def by_user_id(cls, user_id):
-        """Returns a the object with id of user_id"""
-        return dbsession.query(cls).filter_by(user_id=user_id).first()
+    def by_user_id(cls, user_id, all=False):
+        """Returns the object with id of user_id"""
+        if all:
+            return dbsession.query(cls).filter_by(user_id=user_id).all()
+        else:
+            return (
+                dbsession.query(cls)
+                .filter_by(user_id=user_id)
+                .order_by(desc("id"))
+                .first()
+            )
 
     @classmethod
     def count(cls):
-        """Returns a list of all objects in the database"""
+        """Returns a count of all objects in the database"""
         return dbsession.query(cls).count()
 
     @classmethod
     def by_value(cls, value):
-        """Returns a the object with value of value"""
-        return dbsession.query(cls).filter_by(value=value).first()
+        """Returns the object with value of value"""
+        return dbsession.query(cls).filter_by(value=value).order_by(desc("id")).first()

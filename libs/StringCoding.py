@@ -21,9 +21,9 @@ Created on Jul 14, 2018
 # pylint: disable=unused-variable
 
 
-from base64 import b64encode, b64decode
 import codecs
 import sys
+from base64 import b64decode, b64encode
 
 
 def encode(s, name="utf-8", *args, **kwargs):
@@ -34,6 +34,9 @@ def encode(s, name="utf-8", *args, **kwargs):
             except:
                 pass
         return b64encode(s).decode("utf-8").strip()
+    if isinstance(s, (bytes, bytearray)):
+        # requires str, already encoded?
+        return s
     codec = codecs.lookup(name)
     rv, length = codec.encode(s, *args, **kwargs)
     if not isinstance(rv, (str, bytes, bytearray)):
@@ -47,6 +50,9 @@ def decode(s, name="utf-8", *args, **kwargs):
             return bytearray(b64decode(s)).decode("utf-8")
         except:
             pass
+    if isinstance(s, str):
+        # requires bytes, already decoded?
+        return s
     codec = codecs.lookup(name)
     rv, length = codec.decode(s, *args, **kwargs)
     if not isinstance(rv, (str, bytes, bytearray)):

@@ -33,23 +33,22 @@ try:
     import urllib.request as urlrequest
 except ImportError:
     import urllib2 as urlrequest
-import logging
-import tornado
 import json
-
-from models.Theme import Theme
-from models.User import User
-from models.Box import Box
-from libs.EventManager import EventManager
-from libs.ValidationError import ValidationError
-from libs.SecurityDecorators import authenticated
-from libs.XSSImageCheck import IMG_FORMATS
+import logging
 from builtins import str
-from .BaseHandlers import BaseHandler
+
+import tornado
 from tornado.options import options
 
+from libs.EventManager import EventManager
+from libs.SecurityDecorators import authenticated
+from libs.ValidationError import ValidationError
+from libs.XSSImageCheck import IMG_FORMATS
+from models.Box import Box
+from models.Theme import Theme
+from models.User import User
 
-RECAPTCHA_URL = "https://www.google.com/recaptcha/api/siteverify"
+from .BaseHandlers import BaseHandler
 
 
 class HomeHandler(BaseHandler):
@@ -313,8 +312,8 @@ class SettingsHandler(BaseHandler):
             }
             try:
                 recaptcha_req_body = urlencode(recaptcha_req_data).encode("utf-8")
-                reqquest = urlrequest.Request(RECAPTCHA_URL, recaptcha_req_body)
-                response = urlrequest.urlopen(reqquest)
+                request = urlrequest.Request(self.RECAPTCHA_URL, recaptcha_req_body)
+                response = urlrequest.urlopen(request)
                 self.recaptcha_callback(response)
             except tornado.httpclient.HTTPError:
                 logging.exception("Recaptcha AsyncHTTP request threw an exception")

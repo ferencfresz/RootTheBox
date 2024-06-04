@@ -20,28 +20,29 @@ Created on Mar 12, 2012
 """
 
 
-import re
 import hashlib
 import json
+import re
 import xml.etree.cElementTree as ET
-
+from builtins import str
 from uuid import uuid4
+
+from dateutil.parser import parse
+from past.utils import old_div
 from sqlalchemy import Column, ForeignKey
-from sqlalchemy.orm import relationship, backref
-from models.Relationships import team_to_flag, user_to_flag
-from sqlalchemy.types import Unicode, Integer, String, Boolean
+from sqlalchemy.orm import backref, relationship
+from sqlalchemy.types import Boolean, Integer, String, Unicode
+from tornado.options import options
+
+from libs.ValidationError import ValidationError
 from models import dbsession
+from models.BaseModels import DatabaseObject
 from models.Box import Box
-from models.Team import Team
 from models.FlagAttachment import FlagAttachment  # Fix object mapper
 from models.FlagChoice import FlagChoice
 from models.Penalty import Penalty
-from models.BaseModels import DatabaseObject
-from libs.ValidationError import ValidationError
-from builtins import str
-from tornado.options import options
-from dateutil.parser import parse
-from past.utils import old_div
+from models.Relationships import team_to_flag, user_to_flag
+from models.Team import Team
 
 ### Constants
 FLAG_STATIC = "static"
@@ -72,8 +73,9 @@ class Flag(DatabaseObject):
 
     _name = Column(Unicode(64), nullable=True)
     _token = Column(Unicode(256), nullable=False)
-    _description = Column(Unicode(1024), nullable=False)
-    _capture_message = Column(Unicode(512))
+    _plain_answer = Column(Unicode(256)) # https://github.com/moloch--/RootTheBox/issues/601
+    _description = Column(Unicode(4096), nullable=False)
+    _capture_message = Column(Unicode(4096))
     _case_sensitive = Column(Integer, nullable=True)
     _value = Column(Integer, nullable=False)
     _original_value = Column(Integer, nullable=True)
@@ -141,6 +143,10 @@ class Flag(DatabaseObject):
     def by_type(cls, _type):
         """Return and object based on a token"""
         return dbsession.query(cls).filter_by(_type=str(_type)).all()
+
+    @classmethod
+    def get_children(cls, _id):
+        return dbsession.query(cls).filter_by(lock_id=_id).all()
 
     @classmethod
     def team_captures(cls, _id):
@@ -294,7 +300,7 @@ class Flag(DatabaseObject):
 
     @description.setter
     def description(self, value):
-        self._description = str(value)[:1024]
+        self._description = str(value)[:4096]
 
     @property
     def capture_message(self):
@@ -383,7 +389,7 @@ class Flag(DatabaseObject):
     @property
     def locked(self):
         """Determines if an admin has locked an flag."""
-        if self._locked == None:
+        if self._locked is None:
             return False
         return self._locked
 

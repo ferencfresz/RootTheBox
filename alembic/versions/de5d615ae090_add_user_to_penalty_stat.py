@@ -6,12 +6,18 @@ Create Date: 2022-10-14 19:33:02.808038
 
 """
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.engine.reflection import Inspector
 
-conn = op.get_bind()
-inspector = Inspector.from_engine(conn)
-tables = inspector.get_table_names()
+from alembic import op
+
+try:
+    conn = op.get_bind()
+    inspector = Inspector.from_engine(conn)
+    tables = inspector.get_table_names()
+except:
+    conn = None
+    inspector = None
+    tables = None
 
 # revision identifiers, used by Alembic.
 revision = "de5d615ae090"
@@ -21,6 +27,8 @@ depends_on = None
 
 
 def _table_has_column(table, column):
+    if not inspector:
+        return True
     has_column = False
     for col in inspector.get_columns(table):
         if column not in col["name"]:

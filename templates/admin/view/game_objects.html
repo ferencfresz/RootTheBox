@@ -23,6 +23,11 @@
 {% from models.Flag import FLAG_CHOICE %}
 {% from models.FlagChoice import FlagChoice %}
     {% set avatars = filter_avatars("box") %}
+    <!-- Lock Corp Form -->
+    <form id="lock-corp-form" action="/admin/lock/corp" method="post">
+        {% raw xsrf_form_html() %}
+        <input id="lock-corp-uuid" name="uuid" type="hidden" />
+    </form>
     <!-- Lock Box Form -->
     <form id="lock-box-form" action="/admin/lock/box" method="post">
         {% raw xsrf_form_html() %}
@@ -467,7 +472,7 @@
                 <div class="control-group">
                     <label class="control-label" for="hint-description">{{_("Description")}}</label>
                     <div class="controls">
-                        <textarea rows="4" class="toolbar" id="hint-description" name="description" type="text" maxlength="1024" placeholder="{{_('Description')}}"></textarea>
+                        <textarea rows="4" class="toolbar" id="hint-description" name="description" type="text" maxlength="4096" placeholder="{{_('Description')}}"></textarea>
                     </div>
                 </div>
                 <div class="control-group">
@@ -746,11 +751,22 @@
             {% end %}
             {% if len(Corporation.all()) > 0 %}
                 {% for corp_index, corporation in enumerate(Corporation.all()) %}
-                    <div id="{{ corporation.uuid }}" class="well">
+                    <div id="{{ corporation.uuid }}" class="well{% if corporation.locked %} locked{% end %}">
                         <h2 style="display:inline;">
                             <i class="fa fa-fw fa-building-o"></i>
                             {{ corporation.name }}&nbsp;&nbsp;
                         </h2>
+                        {% if corporation.locked %}
+                            <a id="lock-corp-button-{{ corporation.uuid }}" class="btn btn-small btn-warning" data-uuid="{{ corporation.uuid }}">
+                                <i class="fa fa-fw fa-lock"></i>
+                                {{_("Unlock")}}&nbsp;
+                            </a>
+                        {% else %}
+                            <a id="lock-corp-button-{{ corporation.uuid }}" class="btn btn-small btn-success" data-uuid="{{ corporation.uuid }}">
+                                <i class="fa fa-fw fa-unlock"></i>
+                                {{_("Lock")}}&nbsp;
+                            </a>
+                        {% end %}
                         <a id="edit-corporation-button{{ corp_index }}" class="btn btn-small" data-toggle="modal" href="#edit-corporation-modal" data-uuid="{{ corporation.uuid }}">
                             <i class="fa fa-fw fa-pencil"></i>
                             {{_("Edit Corporation")}}
@@ -854,7 +870,7 @@
                                                     {% for index, flag in enumerate(sorted(box.flags_all)) %}
                                                         <tr id="{{ flag.uuid }}" class="{% if flag.locked %} locked{% end %}">
                                                             <td class="index shortcolumn" data-uuid="{{ flag.uuid }}">{{ index + 1 }}</td>
-                                                            <td class="shortcolumn" style="padding-right: 0px;">{% if flag.lock_id %}<i class="fa fa-lock" title="Locked by {{ Flag.by_id(flag.lock_id).name }}"></i>{% end %}</td>
+                                                            <td class="shortcolumn" style="padding-right: 0px;">{% if flag.lock_id and Flag.by_id(flag.lock_id) %}<i class="fa fa-lock" title="Locked by {{ Flag.by_id(flag.lock_id).name }}"></i>{% end %}</td>
                                                             <td class="shortcolumn" style="padding-right: 25px;">{{ flag.name }}</td>
                                                             <td class="descriptioncol markdown">{{ flag.description }}{% if flag.type == FLAG_CHOICE %}
                                                                 {% set choices = FlagChoice.by_flag_id(flag.id) %}
@@ -1047,7 +1063,6 @@
                                     </div>
                                     <!-- End IPs -->
                                 </div>
-                                <br />
                             {% end %}
                         {% else %}
                             <strong>{{_("No boxes in this corporation yet")}}, <a href="/admin/create/box">{{_("add some")}}</a></strong>

@@ -20,17 +20,18 @@ Created on Mar 12, 2012
 """
 
 import os
-
-from uuid import uuid4
+from builtins import str
 from hashlib import sha1
+from uuid import uuid4
+
 from sqlalchemy import Column, ForeignKey
-from sqlalchemy.types import String, Unicode, Integer
+from sqlalchemy.types import Integer, String, Unicode
+from tornado.options import options
+
+from libs.StringCoding import decode, encode
+from libs.ValidationError import ValidationError
 from models import dbsession
 from models.BaseModels import DatabaseObject
-from libs.ValidationError import ValidationError
-from tornado.options import options
-from libs.StringCoding import encode, decode
-from builtins import str
 
 
 class SourceCode(DatabaseObject):
@@ -44,7 +45,7 @@ class SourceCode(DatabaseObject):
 
     box_id = Column(Integer, ForeignKey("box.id", ondelete="CASCADE"), nullable=False)
     _price = Column(Integer, nullable=False)
-    _description = Column(Unicode(1024), nullable=False)
+    _description = Column(Unicode(4096), nullable=False)
     checksum = Column(String(40))
     _file_name = Column(String(64), nullable=False)
 
@@ -113,7 +114,7 @@ class SourceCode(DatabaseObject):
 
     @description.setter
     def description(self, value):
-        self._description = str(value)[:1024]
+        self._description = str(value)[:4096]
 
     def to_dict(self):
         return {

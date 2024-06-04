@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mar 14, 2012
+Created on Mar 13, 2012
 
 @author: moloch
 
@@ -17,22 +17,29 @@ Created on Mar 14, 2012
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
     See the License for the specific language governing permissions and
     limitations under the License.
+----------------------------------------------------------------------------
+
+This file contains handlers related to the file sharing functionality
+
 """
 
 
-from tornado.options import options
-from tornado.web import UIModule
+import json
+import logging
+
+from libs.SecurityDecorators import apikey, restrict_ip_address
+
+from .AdminHandlers.AdminGameHandlers import AdminGameHandler
+from .BaseHandlers import BaseHandler
 
 
-class Recaptcha(UIModule):
-    def render(self, *args, **kwargs):
-        if (
-            options.use_recaptcha
-            and len(options.recaptcha_site_key) > 0
-            and len(options.recaptcha_secret_key) > 0
-        ):
-            return self.render_string(
-                "recaptcha/captcha.html", recaptcha_site_key=options.recaptcha_site_key
-            )
-        else:
-            return self.render_string("recaptcha/disabled.html")
+class APIActionHandler(BaseHandler):
+
+    @apikey
+    @restrict_ip_address
+    def post(self, *args, **kwargs):
+        actions = AdminGameHandler.admin_actions(self)
+        self.write(json.dumps(actions))
+
+    def check_xsrf_cookie(self):
+        pass

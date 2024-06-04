@@ -21,15 +21,16 @@ Created on Mar 12, 2012
 
 
 import xml.etree.cElementTree as ET
-
+from builtins import str
 from uuid import uuid4
+
 from sqlalchemy import Column, ForeignKey, asc
-from sqlalchemy.types import Unicode, Integer, String
-from sqlalchemy.orm import relationship, backref
+from sqlalchemy.orm import backref, relationship
+from sqlalchemy.types import Boolean, Integer, String, Unicode
+
 from libs.ValidationError import ValidationError
 from models import dbsession
 from models.BaseModels import DatabaseObject
-from builtins import str
 from models.Relationships import team_to_game_level
 
 
@@ -46,6 +47,7 @@ class GameLevel(DatabaseObject):
     _reward = Column(Integer, nullable=False, default=0)
     _name = Column(Unicode(32), nullable=True)
     _description = Column(Unicode(512))
+    _locked = Column(Boolean, default=False, nullable=False)
 
     boxes = relationship(
         "Box",
@@ -174,6 +176,30 @@ class GameLevel(DatabaseObject):
             _flags += sorted(box.flags)
         return _flags
 
+    @property
+    def locked(self):
+        """Determines if an admin has locked an level."""
+        if self._locked is None:
+            return False
+        return self._locked
+
+    @locked.setter
+    def locked(self, value):
+        """Setter method for _lock"""
+        if value is None:
+            value = False
+        elif isinstance(value, int):
+            value = value == 1
+        elif isinstance(value, str):
+            value = value.lower() in ["true", "1"]
+        assert isinstance(value, bool)
+        self._locked = value
+
+    def unlocked_boxes(self):
+        if self._locked:
+            return []
+        return [box for box in self.boxes if not box.locked]
+
     def to_xml(self, parent):
         level_elem = ET.SubElement(parent, "gamelevel")
         ET.SubElement(level_elem, "number").text = str(self.number)
@@ -182,6 +208,7 @@ class GameLevel(DatabaseObject):
         ET.SubElement(level_elem, "reward").text = str(self._reward)
         ET.SubElement(level_elem, "name").text = str(self._name)
         ET.SubElement(level_elem, "description").text = str(self._description)
+        ET.SubElement(level_elem, "locked").text = str(self.locked)
 
     def to_dict(self):
         """Return public data as dict"""

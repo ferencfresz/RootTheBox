@@ -23,19 +23,19 @@ command line arguments it calls various components setup/start/etc.
 
 from __future__ import print_function
 
-
-import os
-import sys
-import nose
-import random
 import logging
-
+import os
+import random
+import sys
+from builtins import input, str
 from datetime import datetime
+
+import nose
 from tornado.options import define, options
-from libs.ConsoleColors import *
+
 from libs.ConfigHelpers import save_config, save_config_image
+from libs.ConsoleColors import *
 from libs.StringCoding import set_type
-from builtins import str, input
 from setup import __version__
 
 
@@ -177,7 +177,7 @@ def generate_teams_by_name(team_names):
 
 def generate_admins(admin_names):
     """Creates admin users with the syntax '<handle> <email> <password>'"""
-    from models import User, Permission, dbsession
+    from models import Permission, User, dbsession
     from models.User import ADMIN_PERMISSION
 
     for i in range(0, len(admin_names)):
@@ -273,6 +273,12 @@ def help():
         "\tNo options specified. Examples: 'rootthebox.py --setup=prod' or 'rootthebox.py --start'"
     ]
     help_response.append("\t\t--recovery\tstart the recovery console")
+    help_response.append(
+        "\t\t--reset\tkeeps teams / players and resets the game to start"
+    )
+    help_response.append(
+        "\t\t--reset-delete\tdeletes teams / players and resets the game to start"
+    )
     help_response.append("\t\t--restart\trestart the server")
     help_response.append("\t\t--save\t\tsave the current configuration to file")
     help_response.append("\t\t--setup\t\tsetup a database (prod|devel|docker)")
@@ -363,6 +369,14 @@ define(
     default=None,
     group="server",
     help="url to receive webhook callbacks when certain game actions occur, such as flag capture",
+)
+
+define(
+    "api_keys",
+    multiple=True,
+    default=[],
+    group="server",
+    help="keys to use for api access",
 )
 
 # Mail Server
@@ -495,6 +509,14 @@ define(
     default=False,
     group="application",
     help="show an info text on the user's home page about organizor help",
+    type=bool,
+)
+
+define(
+    "disable_hijack_protection",
+    default=False,
+    group="application",
+    help="Disable the hijack protection when the session ip doesn't equal the request ip",
     type=bool,
 )
 
@@ -771,6 +793,14 @@ define(
     default=True,
     group="game",
     help="turn off teams - individual playstyle",
+    type=bool,
+)
+
+define(
+    "player_use_handle",
+    default=True,
+    group="game",
+    help="when in individual playstyle, use handle or playername",
     type=bool,
 )
 
@@ -1088,6 +1118,20 @@ define("start", default=False, help="start the server", type=bool)
 
 define("restart", default=False, help="restart the server", type=bool)
 
+define(
+    "reset",
+    default=False,
+    help="keeps teams / players and resets the game to start",
+    type=bool,
+)
+
+define(
+    "reset_delete",
+    default=False,
+    help="deletes teams / players and resets the game to start",
+    type=bool,
+)
+
 define("update", default=False, help="pull the latest code via github", type=bool)
 
 define("version", default=False, help="display version information and exit", type=bool)
@@ -1189,5 +1233,15 @@ if __name__ == "__main__":
         setup_xml(options.xml)
     elif options.tests:
         tests()
+    elif options.reset:
+        from handlers.AdminHandlers import AdminResetHandler
+        from models import dbsession
+
+        AdminResetHandler.reset(dbsession)
+    elif options.reset_delete:
+        from handlers.AdminHandlers import AdminResetDeleteHandler
+        from models import dbsession
+
+        AdminResetDeleteHandler.reset(dbsession)
     else:
         print(help())

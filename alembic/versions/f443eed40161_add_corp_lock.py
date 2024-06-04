@@ -1,12 +1,13 @@
-"""add flag _order field
+"""add corp lock
 
-Revision ID: eb3f7dc1b16f
-Revises: 67bf6ca63a9c
-Create Date: 2018-12-14 10:56:12.295780
+Revision ID: f443eed40161
+Revises: ffe623ae412
+Create Date: 2023-05-27 17:01:22.454528
 
 """
 import sqlalchemy as sa
 from sqlalchemy.engine.reflection import Inspector
+from sqlalchemy.sql.expression import func
 
 from alembic import op
 
@@ -19,9 +20,10 @@ except:
     inspector = None
     tables = None
 
+
 # revision identifiers, used by Alembic.
-revision = "eb3f7dc1b16f"
-down_revision = "67bf6ca63a9c"
+revision = "f443eed40161"
+down_revision = "ffe623ae412"
 branch_labels = None
 depends_on = None
 
@@ -43,11 +45,14 @@ def _has_table(table_name):
 
 
 def upgrade():
-    if not _table_has_column("flag", "_order"):
-        op.add_column("flag", sa.Column("_order", sa.INTEGER))
-        op.create_index("order", "flag", ["_order"])
+    if not _table_has_column("corporation", "_locked"):
+        op.add_column("corporation", sa.Column("_locked", sa.BOOLEAN))
+    if not _table_has_column("game_level", "_locked"):
+        op.add_column("game_level", sa.Column("_locked", sa.BOOLEAN))
 
 
 def downgrade():
-    if _table_has_column("flag", "_order"):
-        op.drop_column("flag", "_order")
+    if _table_has_column("corporation", "_locked"):
+        op.drop_column("corporation", "_locked")
+    if _table_has_column("game_level", "_locked"):
+        op.drop_column("game_level", "_locked")

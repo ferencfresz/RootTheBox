@@ -21,12 +21,14 @@ Created on Mar 3, 2023
 # pylint: disable=no-member
 
 import json
-from models import dbsession
-from sqlalchemy import Column, ForeignKey
-from sqlalchemy.types import Unicode, String, Integer
-from models.BaseModels import DatabaseObject
 from builtins import str
+
+from sqlalchemy import Column, ForeignKey
+from sqlalchemy.types import Integer, String, Unicode
 from tornado.options import options
+
+from models import dbsession
+from models.BaseModels import DatabaseObject
 
 
 class GameHistory(DatabaseObject):
@@ -46,6 +48,11 @@ class GameHistory(DatabaseObject):
     def by_type(cls, _type):
         """Return the game history object based on the _type"""
         return dbsession.query(cls).filter_by(_type=_type).all()
+
+    @classmethod
+    def by_team(cls, _team_id):
+        """Return the game history object based on the team"""
+        return dbsession.query(cls).filter_by(team_id=_team_id).all()
 
     @property
     def type(self):
@@ -82,6 +89,9 @@ class GameHistory(DatabaseObject):
         )
 
     def __str__(self):
+        from models.Team import Team
+
+        team = Team.by_id(self.team_id)
         return json.dumps(
             {
                 "created": self.created.strftime("%s"),

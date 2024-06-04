@@ -21,17 +21,18 @@ Created on Aug 11, 2013
 
 
 import xml.etree.cElementTree as ET
-
-from uuid import uuid4
-from sqlalchemy import Column, ForeignKey
-from sqlalchemy.types import Unicode, Integer, String
-from libs.ValidationError import ValidationError
-from models.BaseModels import DatabaseObject
-from models.Relationships import team_to_hint
-from models.Flag import Flag
-from models.Box import Box
-from models import dbsession
 from builtins import str
+from uuid import uuid4
+
+from sqlalchemy import Column, ForeignKey
+from sqlalchemy.types import Integer, String, Unicode
+
+from libs.ValidationError import ValidationError
+from models import dbsession
+from models.BaseModels import DatabaseObject
+from models.Box import Box
+from models.Flag import Flag
+from models.Relationships import team_to_hint
 
 
 class Hint(DatabaseObject):
@@ -45,7 +46,7 @@ class Hint(DatabaseObject):
     box_id = Column(Integer, ForeignKey("box.id"), nullable=False)
     flag_id = Column(Integer, ForeignKey("flag.id"), nullable=True)
     _price = Column(Integer, nullable=False)
-    _description = Column(Unicode(1024), nullable=False)
+    _description = Column(Unicode(4096), nullable=False)
 
     @classmethod
     def all(cls):
@@ -109,8 +110,8 @@ class Hint(DatabaseObject):
 
     @description.setter
     def description(self, value):
-        if not 0 < len(value) < 1025:
-            raise ValidationError("Hint description must be 1 - 1024 characters")
+        if not 0 < len(value) < 4097:
+            raise ValidationError("Hint description must be 1 - 4096 characters")
         self._description = str(value)
 
     def to_xml(self, parent):

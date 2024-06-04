@@ -19,11 +19,33 @@ Created on Mar 13, 2012
 """
 
 
-import logging
 import functools
+import logging
+
+from tornado.options import options
 
 from models.User import User
-from tornado.options import options
+
+
+def apikey(method):
+    """Checks to see if a key is valid"""
+
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        apikey = None
+        for key, value in self.request.headers.items():
+            if key.lower() == "apikey":
+                apikey = value
+        if apikey and apikey in options.api_keys:
+            return method(self, *args, **kwargs)
+        else:
+            logging.warning(
+                "Attempted unauthorized access from %s to %s"
+                % (self.request.remote_ip, self.request.uri)
+            )
+            self.redirect(self.application.settings["forbidden_url"])
+
+    return wrapper
 
 
 def authenticated(method):
@@ -32,7 +54,7 @@ def authenticated(method):
     @functools.wraps(method)
     def wrapper(self, *args, **kwargs):
         if self.session is not None:
-            if self.session.ip_address == self.request.remote_ip:
+            if self.session.ip_address == self.request.remote_ip or options.disable_hijack_protection:
                 if (
                     self.request.remote_ip
                     not in self.application.settings["blacklisted_ips"]

@@ -20,32 +20,34 @@ Created on Mar 11, 2012
 """
 
 
-import os
+import binascii
+import enum
 import imghdr
 import io
+import os
 import xml.etree.cElementTree as ET
-
+from collections import OrderedDict
 from os import urandom
 from uuid import uuid4
-from collections import OrderedDict
-from sqlalchemy import Column, ForeignKey
-from sqlalchemy.orm import relationship, backref
-from sqlalchemy.types import Integer, Unicode, String, Boolean, Enum
-from models import dbsession
-from models.BaseModels import DatabaseObject
-from models.Relationships import team_to_box
-from models.IpAddress import IpAddress
-from models.GameLevel import GameLevel
-from models.Corporation import Corporation
-from models.Category import Category
-from models.SourceCode import SourceCode
-from tornado.options import options
-from libs.XSSImageCheck import is_xss_image, get_new_avatar
-from libs.ValidationError import ValidationError
-from libs.StringCoding import encode
+
 from PIL import Image
 from resizeimage import resizeimage
-import enum
+from sqlalchemy import Column, ForeignKey
+from sqlalchemy.orm import backref, relationship
+from sqlalchemy.types import Boolean, Enum, Integer, String, Unicode
+from tornado.options import options
+
+from libs.StringCoding import decode, encode
+from libs.ValidationError import ValidationError
+from libs.XSSImageCheck import get_new_avatar, is_xss_image
+from models import dbsession
+from models.BaseModels import DatabaseObject
+from models.Category import Category
+from models.Corporation import Corporation
+from models.GameLevel import GameLevel
+from models.IpAddress import IpAddress
+from models.Relationships import team_to_box
+from models.SourceCode import SourceCode
 
 
 class FlagsSubmissionType(str, enum.Enum):
@@ -55,7 +57,7 @@ class FlagsSubmissionType(str, enum.Enum):
 
 from builtins import (  # noqa: E402
     str,
-)  # TODO Python2/3 compatibility issue if imported before FlagSubmissionType
+)
 
 
 class Box(DatabaseObject):
@@ -69,8 +71,8 @@ class Box(DatabaseObject):
 
     _name = Column(Unicode(32), unique=True, nullable=False)
     _operating_system = Column(Unicode(16))
-    _description = Column(Unicode(1024))
-    _capture_message = Column(Unicode(1024))
+    _description = Column(Unicode(4096))
+    _capture_message = Column(Unicode(4096))
     _difficulty = Column(Unicode(16))
     game_level_id = Column(Integer, ForeignKey("game_level.id"), nullable=False)
     _avatar = Column(String(64))
@@ -82,7 +84,7 @@ class Box(DatabaseObject):
         String(32),
         unique=True,
         nullable=False,
-        default=lambda: encode(urandom(16), "hex"),
+        default=lambda: binascii.hexlify(urandom(16)).decode(),
     )
 
     teams = relationship(
@@ -254,8 +256,8 @@ class Box(DatabaseObject):
     def description(self, value):
         if value is None:
             return ""
-        if 1025 < len(value):
-            raise ValidationError("Description cannot be greater than 1024 characters")
+        if 4096 < len(value):
+            raise ValidationError("Description cannot be greater than 4096 characters")
         self._description = str(value)
 
     @property
@@ -295,10 +297,26 @@ class Box(DatabaseObject):
         except ValueError:
             raise ValidationError("Reward value must be an integer")
 
+    def locked_corp(self):
+        corp = Corporation.by_id(self.corporation_id)
+        if corp and corp.locked:
+            return True
+        return False
+
+    def locked_level(self):
+        level = GameLevel.by_id(self.game_level_id)
+        if level and level.locked:
+            return True
+        return False
+
     @property
     def locked(self):
         """Determines if an admin has locked an box."""
-        if self._locked == None:
+        if self.locked_corp():
+            return True
+        if self.locked_level():
+            return True
+        if self._locked is None:
             return False
         return self._locked
 
@@ -401,7 +419,9 @@ class Box(DatabaseObject):
         ).name
         ET.SubElement(box_elem, "difficulty").text = self._difficulty
         ET.SubElement(box_elem, "garbage").text = str(self.garbage)
-        ET.SubElement(box_elem, "locked").text = str(self.locked)
+        ET.SubElement(box_elem, "locked").text = str(
+            False if self._locked is None else self._locked
+        )
         if self.category_id:
             ET.SubElement(box_elem, "category").text = Category.by_id(
                 self.category_id

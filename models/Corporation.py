@@ -21,13 +21,14 @@ Created on Mar 12, 2012
 
 
 import xml.etree.cElementTree as ET
-
-from uuid import uuid4
-from sqlalchemy import Column
-from sqlalchemy.types import Unicode, String
-from sqlalchemy.orm import relationship, backref
-from libs.ValidationError import ValidationError
 from builtins import str
+from uuid import uuid4
+
+from sqlalchemy import Column
+from sqlalchemy.orm import backref, relationship
+from sqlalchemy.types import Boolean, String, Unicode
+
+from libs.ValidationError import ValidationError
 from models import dbsession
 from models.BaseModels import DatabaseObject
 
@@ -39,6 +40,7 @@ class Corporation(DatabaseObject):
 
     _name = Column(Unicode(32), unique=True, nullable=False)
     _description = Column(Unicode(512))
+    _locked = Column(Boolean, default=False, nullable=False)
 
     boxes = relationship(
         "Box",
@@ -92,6 +94,25 @@ class Corporation(DatabaseObject):
             raise ValidationError("Description cannot be greater than 512 characters")
         self._description = str(value)
 
+    @property
+    def locked(self):
+        """Determines if an admin has locked an corp."""
+        if self._locked is None:
+            return False
+        return self._locked
+
+    @locked.setter
+    def locked(self, value):
+        """Setter method for _lock"""
+        if value is None:
+            value = False
+        elif isinstance(value, int):
+            value = value == 1
+        elif isinstance(value, str):
+            value = value.lower() in ["true", "1"]
+        assert isinstance(value, bool)
+        self._locked = value
+
     def to_dict(self):
         """Returns editable data as a dictionary"""
         return {
@@ -106,6 +127,7 @@ class Corporation(DatabaseObject):
         corp_elem = ET.SubElement(parent, "corporation")
         ET.SubElement(corp_elem, "name").text = self.name
         ET.SubElement(corp_elem, "description").text = self.description
+        ET.SubElement(corp_elem, "locked").text = str(self.locked)
         boxes_elem = ET.SubElement(corp_elem, "boxes")
         boxes_elem.set("count", "%s" % str(len(self.boxes)))
         for box in self.boxes:
